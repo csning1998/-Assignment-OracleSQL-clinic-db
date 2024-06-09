@@ -1,0 +1,1978 @@
+PowerShell 7.4.2
+PS C:\Users\janua\OneDrive\Desktop> sqlplus / as sysdba
+
+SQL*Plus: Release 19.0.0.0.0 - Production on Sat Jun 8 23:33:14 2024
+Version 19.3.0.0.0
+
+Copyright (c) 1982, 2019, Oracle.  All rights reserved.
+
+
+Connected to:
+Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+Version 19.3.0.0.0
+
+
+
+=== Create Tablespace ===
+
+We create 2 tablespaces. One is for data and the other is for index search.
+
+SQL> CREATE TABLESPACE clinic_data DATAFILE 'clinic_data.dbf' SIZE 100M AUTOEXTEND ON;
+
+Tablespace created.
+
+SQL> CREATE TABLESPACE clinic_idx DATAFILE 'clinic_idx.dbf' SIZE 50M AUTOEXTEND ON;
+
+Tablespace created.
+
+
+
+=== Create administrative user with root privileges ===
+
+SQL> create user clinic_admin identified by admin;
+
+User created.
+
+SQL> grant dba to clinic_admin;
+
+Grant succeeded.
+
+
+
+=== Modifying the 'sys' and 'system' password for safety ===
+
+SQL> alter user sys identified by root;
+
+User altered.
+
+SQL> alter user system identified by root;
+
+User altered.
+
+
+
+=== Setup Schemas ===
+
+We are going to establish the following schemas according to the demand analysis:
+
+PATIENT_INFO, BILLING, HR, INVENTORY, ACCOUNTING, IT, PUBLIC_RELATIONS
+
+We set the password with the same texts as schema name for convenience.
+
+--
+
+SQL> CREATE USER MEDICAL_AFFAIRS IDENTIFIED BY medical_affairs DEFAULT TABLESPACE clinic_data;
+
+User created.
+
+SQL> CREATE USER BILLING IDENTIFIED BY billing DEFAULT TABLESPACE clinic_data;
+
+User created.
+
+SQL> CREATE USER HR IDENTIFIED BY hr DEFAULT TABLESPACE clinic_data;
+
+User created.
+
+SQL> CREATE USER INVENTORY IDENTIFIED BY inventory DEFAULT TABLESPACE clinic_data;
+
+User created.
+
+SQL> CREATE USER ACCOUNTING IDENTIFIED BY accounting DEFAULT TABLESPACE clinic_data;
+
+User created.
+
+SQL> CREATE USER IT IDENTIFIED BY it DEFAULT TABLESPACE clinic_data;
+
+User created.
+
+SQL> CREATE USER PUBLIC_RELATIONS IDENTIFIED BY public_relations DEFAULT TABLESPACE clinic_data;
+
+User created.
+
+SQL> CREATE USER MEDICAL_IDENTIFIED BY public_relations DEFAULT TABLESPACE clinic_data;
+
+
+
+=== Allocating the users above to the relative schemas ===
+
+SQL> ALTER USER MEDICAL_AFFAIRS DEFAULT TABLESPACE clinic_data;
+
+User altered.
+
+SQL> ALTER USER BILLING DEFAULT TABLESPACE clinic_data;
+
+User altered.
+
+SQL> ALTER USER HR DEFAULT TABLESPACE clinic_data;
+
+User altered.
+
+SQL> ALTER USER INVENTORY DEFAULT TABLESPACE clinic_data;
+
+User altered.
+
+SQL> ALTER USER ACCOUNTING DEFAULT TABLESPACE clinic_data;
+
+User altered.
+
+SQL> ALTER USER IT DEFAULT TABLESPACE clinic_data;
+
+User altered.
+
+SQL> ALTER USER PUBLIC_RELATIONS DEFAULT TABLESPACE clinic_data;
+
+User altered.
+
+
+
+=== Authorise connecting sessions to schemas ===
+
+SQL> GRANT CREATE SESSION TO MEDICAL_AFFAIRS;
+
+Grant succeeded.
+
+SQL> GRANT CREATE SESSION TO HR;
+
+Grant succeeded.
+
+SQL> GRANT CREATE SESSION TO BILLING;
+
+Grant succeeded.
+
+SQL> GRANT CREATE SESSION TO INVENTORY;
+
+Grant succeeded.
+
+SQL> GRANT CREATE SESSION TO ACCOUNTING;
+
+Grant succeeded.
+
+SQL> GRANT CREATE SESSION TO IT;
+
+Grant succeeded.
+
+SQL> GRANT CREATE SESSION TO PUBLIC_RELATIONS;
+
+Grant succeeded.
+
+
+
+
+=== Set Schema content table by item ===
+
+======== Set up HR Schema ========
+
+SQL> ALTER SESSION SET CURRENT_SCHEMA = HR;
+
+Session altered.
+
+SQL> CREATE TABLE Departments (
+  2      DEPT_SEQ INT,
+  3      department_id INT PRIMARY KEY,
+  4      department_name VARCHAR2(50) NOT NULL,
+  5      department_established DATE,
+  6      department_location VARCHAR2(30),
+  7      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  8      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  9  );
+
+Table created.
+
+SQL> CREATE SEQUENCE DEPT_SEQ START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE Departments MODIFY DEPT_SEQ DEFAULT DEPT_SEQ.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE Employees (
+  2      EMP_SEQ INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) UNIQUE NOT NULL,
+  4      employee_name VARCHAR2(10) NOT NULL,
+  5      employee_name_en VARCHAR2(50),
+  6      employee_position VARCHAR2(50) NOT NULL,
+  7      department_id INT REFERENCES Departments(department_id),
+  8      status CHAR(2) CHECK (status IN ('E', 'R', 'UL')),
+  9      employee_hire_date DATE,
+ 10      employee_supervisor_id VARCHAR2(8) REFERENCES Employees(employee_id),
+ 11      gender CHAR(1) CHECK (gender IN ('M', 'F')),
+ 12      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 13      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 14  );
+
+Table created.
+
+SQL> ALTER TABLE Departments ADD department_manager_id VARCHAR2(8) REFERENCES Employees(employee_id);
+
+Table altered.
+
+SQL> CREATE SEQUENCE EMP_SEQ START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Employee_Coontacts (
+  2      contact_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      contact_type VARCHAR2(20),
+  5      contact_name VARCHAR2(50),
+  6      contact_phone VARCHAR2(20) NOT NULL CHECK (REGEXP_LIKE(contact_phone, '^\d{10}$')),
+  7      contact_relationship VARCHAR2(50),
+  8      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  9      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 10  );
+
+Table created.
+
+SQL> CREATE SEQUENCE employee_contacts_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Employee_Personal_Info (
+  2      employee_id VARCHAR2(8) PRIMARY KEY REFERENCES Employees(employee_id),
+  3      employee_identity CHAR(1) CHECK (employee_identity IN ('A', 'B')),
+  4      employee_photo BLOB,
+  5      employee_nationality VARCHAR2(100),
+  6      national_identifier CHAR(10) UNIQUE NOT NULL CHECK (REGEXP_LIKE(national_identifier, '^[A-Z][12]\d{8}$')),
+  7      birthday DATE,
+  8      place_of_birth VARCHAR2(4000),
+  9      height NUMBER(3,2),
+ 10      weight NUMBER(3,2),
+ 11      marital_status VARCHAR2(20) CHECK (marital_status IN ('Single', 'Married', 'Divorced', 'Widowed')),
+ 12      veteran_status CHAR(1) CHECK (veteran_status IN ('Y', 'N')),
+ 13      transportation VARCHAR2(10),
+ 14      blood_type VARCHAR2(5) CHECK (blood_type IN ('A', 'B', 'AB', 'O', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
+ 15      residence_address VARCHAR2(4000),
+ 16      current_address VARCHAR2(4000),
+ 17      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 18      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 19  );
+
+Table created.
+
+SQL> CREATE TABLE Employee_Work_History (
+  2      work_history_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      employee_academic_a VARCHAR2(255),
+  5      employee_academic_b VARCHAR2(255),
+  6      employee_work_experience VARCHAR2(255),
+  7      employee_talent VARCHAR2(255),
+  8      employee_languages VARCHAR2(255),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 11  );
+
+Table created.
+
+SQL> CREATE SEQUENCE employee_work_history_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Salary (
+  2      salary_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      department_id INT REFERENCES Departments(department_id),
+  5      registration_time DATE NOT NULL,
+  6      salary_basic INT,
+  7      salary_other INT,
+  8      salary_performance INT,
+  9      salary_festival INT,
+ 10      salary_others INT,
+ 11      insurance_labor INT,
+ 12      insurance_health INT,
+ 13      insurance_group INT,
+ 14      pension INT,
+ 15      salary_tax INT,
+ 16      employee_absence INT,
+ 17      salary_actual INT,
+ 18      employee_account VARCHAR2(20),
+ 19      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 20      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 21  );
+
+Table created.
+
+SQL> CREATE SEQUENCE salary_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Attendance (
+  2      attendance_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      absence_date DATE NOT NULL,
+  5      absence_type CHAR(5) CHECK (absence_type IN ('S', 'P', 'O', 'B', 'M', 'Other')),
+  6      absence_hours NUMBER(4,2) CHECK (absence_hours >= 0),
+  7      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  8      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  9  );
+
+Table created.
+
+SQL> CREATE SEQUENCE attendance_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Employees_Training (
+  2      training_record_id INT PRIMARY KEY,
+  3      registration_time DATE NOT NULL,
+  4      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  5      training_categories VARCHAR2(50),
+  6      training_course VARCHAR2(20),
+  7      training_contents VARCHAR2(255),
+  8      training_hours NUMBER(4,2) CHECK (training_hours >= 0),
+  9      training_instructor VARCHAR2(10),
+ 10      employee_supervisor_id VARCHAR2(8) REFERENCES Employees(employee_id),
+ 11      assessment VARCHAR2(4000),
+ 12      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 13      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 14  );
+
+Table created.
+
+SQL> CREATE SEQUENCE employees_training_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Employees_Assessment (
+  2      assessment_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      registration_time DATE,
+  5      employee_hire_date DATE,
+  6      employee_id_assessor VARCHAR2(8) REFERENCES Employees(employee_id),
+  7      employee_assessor_position VARCHAR2(50),
+  8      hours_internal_training NUMBER(4,2) CHECK (hours_internal_training >= 0),
+  9      hours_external_training NUMBER(4,2) CHECK (hours_external_training >= 0),
+ 10      moral_conduct INT CHECK (moral_conduct BETWEEN 1 AND 5),
+ 11      leadership INT CHECK (leadership BETWEEN 1 AND 5),
+ 12      planning_skills INT CHECK (planning_skills BETWEEN 1 AND 5),
+ 13      work_efficiency INT CHECK (work_efficiency BETWEEN 1 AND 5),
+ 14      responsibility INT CHECK (responsibility BETWEEN 1 AND 5),
+ 15      communication INT CHECK (communication BETWEEN 1 AND 5),
+ 16      cost_awareness INT CHECK (cost_awareness BETWEEN 1 AND 5),
+ 17      weighted_avg NUMBER(3,2),
+ 18      comments VARCHAR2(4000),
+ 19      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 20      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 21  );
+
+Table created.
+
+SQL> CREATE SEQUENCE employees_assessment_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE EmployeeTransfers (
+  2      transfer_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      transfer_date DATE NOT NULL,
+  5      original_department_id INT REFERENCES Departments(department_id),
+  6      new_department_id INT REFERENCES Departments(department_id),
+  7      reason VARCHAR2(255),
+  8      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  9      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 10  );
+
+Table created.
+
+SQL> CREATE SEQUENCE employee_transfers_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Insurance_Records (
+  2      insurance_record_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      insurance_type VARCHAR2(20) CHECK (insurance_type IN ('GI', 'NP')),
+  5      payment_period VARCHAR2(50),
+  6      payment_amount NUMBER(10,2) NOT NULL,
+  7      payment_date DATE,
+  8      note VARCHAR2(4000),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 11  );
+
+Table created.
+
+SQL> CREATE SEQUENCE insurance_records_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Employee_Commissions (
+  2      commission_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      business_item VARCHAR2(50) NOT NULL,
+  5      commission_rate NUMBER(5,2) NOT NULL,
+  6      commission_amount NUMBER(10,2) NOT NULL,
+  7      payout_date DATE,
+  8      note VARCHAR2(4000),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 11  );
+
+Table created.
+
+SQL> CREATE SEQUENCE employee_commissions_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Medical_Assessment (
+  2      assessment_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      department_id INT REFERENCES Departments(department_id),
+  5      employee_position VARCHAR2(15),
+  6      registration_time DATE,
+  7      employee_hire_date DATE NOT NULL,
+  8      hours_internal_training NUMBER(4,2),
+  9      hours_external_training NUMBER(4,2),
+ 10      hours_volunteer NUMBER(4,2) CHECK (hours_volunteer >= 0),
+ 11      hours_emergency NUMBER(4,2) CHECK (hours_emergency >= 0),
+ 12      days_ward_duty INT CHECK (days_ward_duty >= 0),
+ 13      is_department_head CHAR(1) CHECK (is_department_head IN ('Y', 'N')),
+ 14      hours_community_service NUMBER(4,2),
+ 15      outer_performance VARCHAR2(200),
+ 16      counts_outpatient INT CHECK (counts_outpatient >= 0),
+ 17      counts_emergency INT CHECK (counts_emergency >= 0),
+ 18      counts_inpatient INT CHECK (counts_inpatient >= 0),
+ 19      counts_consultation INT CHECK (counts_consultation >= 0),
+ 20      counts_xray INT CHECK (counts_xray >= 0),
+ 21      counts_surgery INT CHECK (counts_surgery >= 0),
+ 22      counts_anesthesia INT CHECK (counts_anesthesia >= 0),
+ 23      counts_pathology INT CHECK (counts_pathology >= 0),
+ 24      counts_lithotripsy INT CHECK (counts_lithotripsy >= 0),
+ 25      counts_rehabilitation INT CHECK (counts_rehabilitation >= 0),
+ 26      counts_checkup INT CHECK (counts_checkup >= 0),
+ 27      counts_respiratory_therapy INT CHECK (counts_respiratory_therapy >= 0),
+ 28      counts_dental_treatment INT CHECK (counts_dental_treatment >= 0),
+ 29      counts_certificate INT CHECK (counts_certificate >= 0),
+ 30      counts_other_treatment INT CHECK (counts_other_treatment >= 0),
+ 31      total_score NUMBER(10,2),
+ 32      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 33      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 34  );
+
+Table created.
+
+SQL> CREATE SEQUENCE medical_assessment_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE Medical_Assessment MODIFY assessment_id DEFAULT medical_assessment_seq.NEXTVAL;
+
+Table altered.
+
+
+SQL> CREATE OR REPLACE TRIGGER update_departments_updated_at
+  2  BEFORE UPDATE ON Departments
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_employees_updated_at
+  2  BEFORE UPDATE ON Employees
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_employee_contacts_updated_at
+  2  BEFORE UPDATE ON Employee_Coontacts
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_employee_work_history_updated_at
+  2  BEFORE UPDATE ON Employee_Work_History
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_salary_updated_at
+  2  BEFORE UPDATE ON Salary
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_attendance_updated_at
+  2  BEFORE UPDATE ON Attendance
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_employees_training_updated_at
+  2  BEFORE UPDATE ON Employees_Training
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_employees_assessment_updated_at
+  2  BEFORE UPDATE ON Employees_Assessment
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_employee_transfers_updated_at
+  2  BEFORE UPDATE ON EmployeeTransfers
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_insurance_records_updated_at
+  2  BEFORE UPDATE ON Insurance_Records
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_employee_commissions_updated_at
+  2  BEFORE UPDATE ON Employee_Commissions
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> -- Medical_Assessment
+SQL> CREATE OR REPLACE TRIGGER update_medical_assessment_updated_at
+  2  BEFORE UPDATE ON Medical_Assessment
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+
+
+======== Setup HR Schema ========
+
+SQL> ALTER SESSION SET CURRENT_SCHEMA = MEDICAL_AFFAIRS;
+
+Session altered.
+
+SQL> CREATE TABLE PATIENT_INFO (
+  2      patient_info_id INT PRIMARY KEY,
+  3      patient_number VARCHAR2(20) UNIQUE NOT NULL,
+  4      patient_name VARCHAR2(50) NOT NULL,
+  5      national_identifier CHAR(10) UNIQUE NOT NULL CHECK (REGEXP_LIKE(national_identifier, '^[A-Z][12]\d{8}$')),
+  6      birth_date DATE NOT NULL,
+  7      blood_type VARCHAR2(5) CHECK (blood_type IN ('A', 'B', 'AB', 'O', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-')),
+  8      biological_sex CHAR(1) CHECK (biological_sex IN ('M', 'F')),
+  9      address VARCHAR2(255),
+ 10      occupation VARCHAR2(50),
+ 11      phone_number VARCHAR2(20) NOT NULL CHECK (REGEXP_LIKE(phone_number, '^\d{10}$')),
+ 12      first_visit_date DATE NOT NULL,
+ 13      family_history VARCHAR2(255),
+ 14      patient_note VARCHAR2(4000),
+ 15      emergency_contact_name VARCHAR2(50) NOT NULL,
+ 16      emergency_contact_phone VARCHAR2(20) NOT NULL CHECK (REGEXP_LIKE(emergency_contact_phone, '^\d{10}$')),
+ 17      emergency_contact_relationship VARCHAR2(50),
+ 18      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 19      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 20  );
+
+Table created.
+
+SQL> CREATE SEQUENCE patient_info_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE PATIENT_INFO MODIFY patient_info_id DEFAULT patient_info_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE PATIENT_MEDICAL_HISTORY (
+  2      medical_history_id INT PRIMARY KEY,
+  3      patient_info_id INT REFERENCES PATIENT_INFO(patient_info_id),
+  4      diagnosis_date DATE NOT NULL,
+  5      disease_name VARCHAR2(255) NOT NULL,
+  6      treatment CLOB,
+  7      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  8      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  9  );
+
+Table created.
+
+SQL> CREATE SEQUENCE patient_medical_history_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE PATIENT_MEDICAL_HISTORY MODIFY medical_history_id DEFAULT patient_medical_history_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE PATIENT_ALLERGY_HISTORY (
+  2      allergy_history_id INT PRIMARY KEY,
+  3      patient_info_id INT REFERENCES PATIENT_INFO(patient_info_id),
+  4      allergen VARCHAR2(255) NOT NULL,
+  5      reaction VARCHAR2(255),
+  6      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  7      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  8  );
+
+Table created.
+
+SQL> CREATE SEQUENCE patient_allergy_history_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE PATIENT_ALLERGY_HISTORY MODIFY allergy_history_id DEFAULT patient_allergy_history_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE PATIENT_MEDICATION_HISTORY (
+  2      medication_history_id INT PRIMARY KEY,
+  3      patient_info_id INT REFERENCES PATIENT_INFO(patient_info_id),
+  4      medication_name VARCHAR2(255) NOT NULL,
+  5      usage_start_date DATE,
+  6      usage_end_date DATE,
+  7      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  8      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  9  );
+
+Table created.
+
+SQL> CREATE SEQUENCE patient_medication_history_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE PATIENT_MEDICATION_HISTORY MODIFY medication_history_id DEFAULT patient_medication_history_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE APPOINTMENTS (
+  2      appointment_id INT PRIMARY KEY,
+  3      patient_info_id INT REFERENCES PATIENT_INFO(patient_info_id),
+  4      appointment_phone VARCHAR2(20) NOT NULL CHECK (REGEXP_LIKE(appointment_phone, '^\d{10}$')),
+  5      appointment_datetime TIMESTAMP NOT NULL,
+  6      appointment_channel CHAR(3) CHECK (appointment_channel IN ('OR', 'Int', 'Tel', 'PRC')),
+  7      appointment_status VARCHAR2(20) CHECK (appointment_status IN ('A', 'S', 'C')),
+  8      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  9      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 10  );
+
+Table created.
+
+SQL> CREATE SEQUENCE appointments_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE APPOINTMENTS MODIFY appointment_id DEFAULT appointments_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE MEDICATION_MANAGEMENT (
+  2      medication_id INT PRIMARY KEY,
+  3      medication_code VARCHAR2(20) UNIQUE NOT NULL,
+  4      license_number VARCHAR2(50) UNIQUE NOT NULL,
+  5      medication_name VARCHAR2(50) NOT NULL,
+  6      scientific_name VARCHAR2(255) NOT NULL,
+  7      medication_type VARCHAR2(50) NOT NULL,
+  8      route VARCHAR2(20) NOT NULL,
+  9      ingredients VARCHAR2(255) NOT NULL,
+ 10      indications VARCHAR2(255) NOT NULL,
+ 11      dosage VARCHAR2(20) NOT NULL,
+ 12      frequency VARCHAR2(20) NOT NULL,
+ 13      unit VARCHAR2(20) NOT NULL,
+ 14      contraindications VARCHAR2(255) NOT NULL,
+ 15      warnings VARCHAR2(255) NOT NULL,
+ 16      side_effects VARCHAR2(255) NOT NULL,
+ 17      packaging_storage VARCHAR2(255) NOT NULL,
+ 18      health_insurance CHAR(1) CHECK (health_insurance IN ('Y', 'N')),
+ 19      medication_price INT,
+ 20      medication_manufacturer VARCHAR2(255),
+ 21      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 22      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 23  );
+
+Table created.
+
+SQL> CREATE SEQUENCE medication_management_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE MEDICATION_MANAGEMENT MODIFY medication_id DEFAULT medication_management_seq.NEXTVAL;
+
+Table altered.
+
+SQL> GRANT REFERENCES ON HR.Employees TO MEDICAL_AFFAIRS;
+
+Grant succeeded.
+
+SQL> CREATE TABLE TREATMENT_RECORD (
+  2      treatment_record_id INT PRIMARY KEY,
+  3      patient_info_id INT REFERENCES PATIENT_INFO(patient_info_id),
+  4      doctor_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  5      treatment_date TIMESTAMP NOT NULL,
+  6      chief_complaint CLOB NOT NULL,
+  7      medical_history_summary CLOB NOT NULL,
+  8      physical_examination VARCHAR2(255) NOT NULL,
+  9      examination_items VARCHAR2(255) NOT NULL,
+ 10      lab_test_results CLOB NOT NULL,
+ 11      diagnosis CLOB NOT NULL,
+ 12      treatment_plan CLOB NOT NULL,
+ 13      prescriber_signature BLOB NOT NULL,
+ 14      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 15      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 16  );
+
+Table created.
+
+
+Table created.
+
+SQL> CREATE SEQUENCE treatment_record_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE TREATMENT_RECORD MODIFY treatment_record_id DEFAULT treatment_record_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE PERSCRIPTION (
+  2      prescription_SEQ INT PRIMARY KEY,
+  3      treatment_record_id INT REFERENCES TREATMENT_RECORD(treatment_record_id),
+  4      prescription_date TIMESTAMP NOT NULL,
+  5      patient_SEQ INT REFERENCES PATIENT_INFO(patient_info_id), -- Assuming this is also a FK
+  6      medication_id INT REFERENCES MEDICATION_MANAGEMENT(medication_id),
+  7      dosage VARCHAR2(50) NOT NULL,
+  8      route VARCHAR2(50) NOT NULL,
+  9      unit VARCHAR2(20) NOT NULL,
+ 10      total_amount INT,
+ 11      usage VARCHAR2(20),
+ 12      days_supply INT,
+ 13      description VARCHAR2(255),
+ 14      doctor_id VARCHAR2(8) REFERENCES Employees(employee_id),
+ 15      prescription_status CHAR(1) CHECK (prescription_status IN ('I', 'R', 'D'))
+ 16  );
+
+Table created.
+
+SQL> CREATE SEQUENCE prescription_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE PERSCRIPTION MODIFY prescription_SEQ DEFAULT prescription_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE SYNONYM Supplier_INFOSyn FOR INVENTORY.Supplier_INFO;
+
+Synonym created.
+
+SQL> CREATE SYNONYM Inventories FOR INVENTORY.Inventories;
+
+Synonym created.
+
+SQL> CREATE TABLE NUTRITIONAL_SUPPLIMENTS (
+  2    supplements_id INT PRIMARY KEY,
+  3    license_number VARCHAR2(50) UNIQUE NOT NULL,
+  4    inventories_id VARCHAR2(10) REFERENCES Inventories(item_code),
+  5    content VARCHAR2(255) NOT NULL,
+  6    quantity INT CHECK (quantity >= 0),
+  7    unit CHAR(3) CHECK (unit IN ('NW', 'Cap', 'Qty')),
+  8    storage_method VARCHAR2(255),
+  9    storage_condition VARCHAR2(255),
+ 10    supplier_uid INT REFERENCES Supplier_INFOSyn(supplier_uid), -- 使用新的同義詞
+ 11    approved_effects VARCHAR2(255),
+ 12    recommended_intake VARCHAR2(255),
+ 13    precautions CLOB,
+ 14    batch_number VARCHAR2(50),
+ 15    manufacture_date DATE,
+ 16    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 17    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 18  );
+
+Table created.
+
+SQL> CREATE SEQUENCE nutritional_supplements_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE NUTRITIONAL_SUPPLIMENTS MODIFY supplements_id DEFAULT nutritional_supplements_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE NUTRIENT_SUPPLY_PERSCRIPTION (
+  2      nutrient_prescription_id INT PRIMARY KEY,
+  3      patient_info_id INT REFERENCES PATIENT_INFO(patient_info_id),
+  4      supplements_id INT REFERENCES NUTRITIONAL_SUPPLIMENTS(supplements_id),
+  5      content VARCHAR2(255),
+  6      prescribed_amount INT CHECK (prescribed_amount >= 0),
+  7      prescribed_unit CHAR(3) CHECK (prescribed_unit IN ('NW', 'Cap', 'Qty')),
+  8      total_quantity INT CHECK (total_quantity >= 0),
+  9      precautions VARCHAR2(255),
+ 10      nutrient_composition VARCHAR2(255),
+ 11      prescriber_signature BLOB,
+ 12      prescription_status CHAR(1) CHECK (prescription_status IN ('I', 'R', 'D')),
+ 13      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 14      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 15  );
+
+Table created.
+
+SQL> CREATE SEQUENCE nutrient_supply_prescription_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE NUTRIENT_SUPPLY_PERSCRIPTION MODIFY nutrient_prescription_id DEFAULT nutrient_supply_prescription_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE DOCTOR_QUALIFICATION (
+  2      doctor_qualification_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      certificate_type VARCHAR2(50) NOT NULL,
+  5      certificate_id VARCHAR2(50) NOT NULL,
+  6      practice_registration VARCHAR2(50) NOT NULL,
+  7      practice_county VARCHAR2(50) NOT NULL,
+  8      biological_sex CHAR(1) CHECK (biological_sex IN ('M', 'F')),
+  9      qualification VARCHAR2(50) NOT NULL,
+ 10      practice_discipline VARCHAR2(50) NOT NULL,
+ 11      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 12      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 13  );
+
+Table created.
+
+SQL> CREATE SEQUENCE doctor_qualification_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE DOCTOR_QUALIFICATION MODIFY doctor_qualification_id DEFAULT doctor_qualification_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE MEDICAL_EQUIPMENT (
+  2      medical_equipment_id INT PRIMARY KEY,
+  3      equipment_name VARCHAR2(50) NOT NULL,
+  4      inventories_id VARCHAR2(10) REFERENCES Inventories(item_code), -- Assuming FK
+  5      safety_stock INT CHECK (safety_stock >= 0),
+  6      expiry_date DATE,
+  7      purchase_date DATE,
+  8      useful_life INT CHECK (useful_life >= 0),
+  9      note VARCHAR2(4000),
+ 10      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 12  );
+
+Table created.
+
+SQL> CREATE SEQUENCE medical_equipment_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE MEDICAL_EQUIPMENT MODIFY medical_equipment_id DEFAULT medical_equipment_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE DUTY_ROASTER (
+  2      duty_roster_id INT PRIMARY KEY,
+  3      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  4      duty_year INT NOT NULL,
+  5      duty_month INT NOT NULL,
+  6      duty_date DATE NOT NULL,
+  7      shift_type VARCHAR2(20) CHECK (shift_type IN ('Day', 'Night', 'Evening', 'On Call')),
+  8      duty_status VARCHAR2(20) CHECK (duty_status IN ('D', 'N')),
+  9      notes VARCHAR2(255),
+ 10      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 12  );
+
+Table created.
+
+SQL> CREATE SEQUENCE duty_roster_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE DUTY_ROASTER MODIFY duty_roster_id DEFAULT duty_roster_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE OR REPLACE TRIGGER update_patient_info_updated_at
+  2  BEFORE UPDATE ON PATIENT_INFO
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_patient_medical_history_updated_at
+  2  BEFORE UPDATE ON PATIENT_MEDICAL_HISTORY
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_patient_allergy_history_updated_at
+  2  BEFORE UPDATE ON PATIENT_ALLERGY_HISTORY
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_patient_medication_history_updated_at
+  2  BEFORE UPDATE ON PATIENT_MEDICATION_HISTORY
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_appointments_updated_at
+  2  BEFORE UPDATE ON APPOINTMENTS
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_medication_management_updated_at
+  2  BEFORE UPDATE ON MEDICATION_MANAGEMENT
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_treatment_record_updated_at
+  2  BEFORE UPDATE ON TREATMENT_RECORD
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_nutrient_supply_prescription_updated_at
+  2  BEFORE UPDATE ON NUTRIENT_SUPPLY_PERSCRIPTION
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_doctor_qualification_updated_at
+  2  BEFORE UPDATE ON DOCTOR_QUALIFICATION
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER update_duty_roaster_updated_at
+  2  BEFORE UPDATE ON DUTY_ROASTER
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+
+
+======== Setup INVENTORY schemas ========
+
+SQL> GRANT REFERENCES ON HR.Employees TO INVENTORY;
+
+Grant succeeded.
+
+SQL> CREATE SYNONYM Employees FOR HR.Employees;
+
+Synonym created.
+
+SQL> CREATE TABLE Supplier_INFO (
+  2      SUPPLIER_SEQ INT PRIMARY KEY,
+  3      supplier_uid INT UNIQUE NOT NULL,
+  4      supplier_name VARCHAR2(50) NOT NULL,
+  5      supplier_service VARCHAR2(255),
+  6      supplier_address VARCHAR2(4000),
+  7      supplier_capital NUMBER(15,2),
+  8      supplier_contact VARCHAR2(50),
+  9      supplier_pid VARCHAR2(50),
+ 10      supplier_phone VARCHAR2(20),
+ 11      supplier_fax VARCHAR2(20),
+ 12      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+ 13      supplier_bank VARCHAR2(20),
+ 14      supplier_bank_branch VARCHAR2(10),
+ 15      supplier_bank_code VARCHAR2(10),
+ 16      supplier_account VARCHAR2(20),
+ 17      payment_method CHAR(4) CHECK (payment_method IN ('Cash', 'BT', 'CHK', 'MO')),
+ 18      payment_terms VARCHAR2(50),
+ 19      note VARCHAR2(4000),
+ 20      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 21      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 22  );
+
+Table created.
+
+SQL> CREATE SEQUENCE SUPPLIER_SEQ START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE Inventories (
+  2      inventory_id INT PRIMARY KEY,
+  3      item_code VARCHAR2(10) UNIQUE NOT NULL,
+  4      item_name VARCHAR2(50) NOT NULL,
+  5      category CHAR(3) CHECK (category IN ('MS', 'RC', 'MS', 'Med')),
+  6      purpose VARCHAR2(10),
+  7      last_purchase_time TIMESTAMP,
+  8      supplier_uid INT REFERENCES Supplier_INFO(supplier_uid),
+  9      model VARCHAR2(50),
+ 10      is_controlled_drug CHAR(1) CHECK (is_controlled_drug IN ('Y', 'N')),
+ 11      unit VARCHAR2(50),
+ 12      unit_amount NUMBER(10,2),
+ 13      unit_price NUMBER(10,2),
+ 14      inventory_limit INT NOT NULL,
+ 15      inventory_save INT NOT NULL,
+ 16      expiry_date DATE,
+ 17      note VARCHAR2(4000),
+ 18      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 19      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 20  );
+
+Table created.
+
+SQL> CREATE SEQUENCE inventories_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE INVENTORIES_TRANSACTION (
+  2      transaction_id INT PRIMARY KEY,
+  3      registration_time TIMESTAMP NOT NULL,
+  4      inventories_id VARCHAR2(10) REFERENCES Inventories(item_code),
+  5      registration_amount INT NOT NULL CHECK (registration_amount > 0),
+  6      inventory_type CHAR(1) NOT NULL CHECK (inventory_type IN ('I', 'O')),
+  7      employee_id_host VARCHAR2(8) REFERENCES Employees(employee_id),
+  8      employee_id_pickup VARCHAR2(8) REFERENCES Employees(employee_id),
+  9      description VARCHAR2(4000),
+ 10      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 12  );
+
+Table created.
+
+SQL> CREATE SEQUENCE inventory_transactions_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE INVENTORIES_RECORD (
+  2      record_id INT PRIMARY KEY,
+  3      registration_time TIMESTAMP NOT NULL,
+  4      inventories_id VARCHAR2(10) REFERENCES Inventories(item_code),
+  5      inventories_name VARCHAR2(50),
+  6      inventories_location VARCHAR2(50),
+  7      inventories_actual INT NOT NULL,
+  8      inventories_status CHAR(1) NOT NULL CHECK (inventories_status IN ('C', 'O', 'D')),
+  9      note VARCHAR2(4000),
+ 10      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 12  );
+
+Table created.
+
+SQL> CREATE SEQUENCE inventory_records_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL>
+SQL> CREATE TABLE Controlled_Drug_Transactions (
+  2      transaction_id INT PRIMARY KEY,
+  3      registration_time TIMESTAMP NOT NULL,
+  4      inventories_id VARCHAR2(10) REFERENCES Inventories(item_code),
+  5      registration_amount INT NOT NULL CHECK (registration_amount > 0),
+  6      transaction_type CHAR(3) NOT NULL CHECK (transaction_type IN ('In', 'Out', 'Chk')),
+  7      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  8      document_number VARCHAR2(50),
+  9      description VARCHAR2(4000),
+ 10      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 12  );
+
+Table created.
+
+SQL> CREATE SEQUENCE controlled_drug_transactions_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE EQUIPMENTS (
+  2      equipment_id INT PRIMARY KEY,
+  3      equipment_code VARCHAR2(10) UNIQUE NOT NULL,
+  4      equipment_name VARCHAR2(50) NOT NULL,
+  5      equipment_model VARCHAR2(50),
+  6      equipment_status CHAR(1) CHECK (equipment_status IN ('O', 'D', 'N', 'A', 'R')),
+  7      equipment_price INT,
+  8      supplier_uid INT REFERENCES Supplier_INFO(supplier_uid),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 11  );
+
+Table created.
+
+SQL> CREATE SEQUENCE equipments_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE TABLE MAINTENANCE_RECORD (
+  2      record_id INT PRIMARY KEY,
+  3      equipment_id INT REFERENCES Equipments(equipment_id),
+  4      registration_time TIMESTAMP NOT NULL,
+  5      maintenance_technician VARCHAR2(10),
+  6      maintenance_item VARCHAR2(4000),
+  7      maintenance_detail VARCHAR2(4000),
+  8      repair_item VARCHAR2(4000),
+  9      repair_cause VARCHAR2(4000),
+ 10      total_cost NUMBER(10,2),
+ 11      repair_sop VARCHAR2(4000),
+ 12      repair_result VARCHAR2(4000),
+ 13      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 14      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 15  );
+
+Table created.
+
+SQL> CREATE SEQUENCE maintenance_records_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE OR REPLACE TRIGGER update_supplier_info_updated_at
+  2  BEFORE UPDATE ON Supplier_INFO
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_inventories_updated_at
+  2  BEFORE UPDATE ON Inventories
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_inventories_transaction_updated_at
+  2  BEFORE UPDATE ON INVENTORIES_TRANSACTION
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_inventories_record_updated_at
+  2  BEFORE UPDATE ON INVENTORIES_RECORD
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_controlled_drug_transactions_updated_at
+  2  BEFORE UPDATE ON Controlled_Drug_Transactions
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_equipments_updated_at
+  2  BEFORE UPDATE ON EQUIPMENTS
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_maintenance_record_updated_at
+  2  BEFORE UPDATE ON MAINTENANCE_RECORD
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+
+
+======== Set up Accounting Schema ========
+
+SQL> ALTER SESSION SET CURRENT_SCHEMA = ACCOUNTING;
+
+SQL> CREATE TABLE CASHFLOW_STATEMENT (
+  2      ID INT PRIMARY KEY,
+  3      registration_date DATE,
+  4      cash_and_equivalents NUMBER(10,2),
+  5      net_notes_receivable NUMBER(10,2),
+  6      net_accounts_receivable NUMBER(10,2),
+  7      net_accounts_receivable_related NUMBER(10,2),
+  8      merchandise_inventory NUMBER(10,2),
+  9      prepaid_expenses NUMBER(10,2),
+ 10      other_current_assets NUMBER(10,2),
+ 11      property_plant_equipment NUMBER(10,2),
+ 12      depreciation_amortization NUMBER(10,2),
+ 13      amortization_other_expenses NUMBER(10,2),
+ 14      changes_notes_receivable NUMBER(10,2),
+ 15      decrease_accounts_receivable NUMBER(10,2),
+ 16      decrease_inventory NUMBER(10,2),
+ 17      changes_other_current_assets NUMBER(10,2),
+ 18      decrease_notes_payable NUMBER(10,2),
+ 19      changes_accounts_payable NUMBER(10,2),
+ 20      decrease_other_payables NUMBER(10,2),
+ 21      changes_other_current_liabilities NUMBER(10,2),
+ 22      interest_paid NUMBER(10,2),
+ 23      income_taxes_paid NUMBER(10,2)
+ 24  );
+
+Table created.
+
+SQL> CREATE TABLE STATEMENTS_EXPENSE (
+  2      ID INT PRIMARY KEY,
+  3      registration_date DATE,
+  4      operating_revenue NUMBER(10,2),
+  5      operating_costs NUMBER(10,2),
+  6      gross_profit NUMBER(10,2),
+  7      operating_expenses NUMBER(10,2),
+  8      selling_expenses NUMBER(10,2),
+  9      administrative_expenses NUMBER(10,2),
+ 10      research_development_expenses NUMBER(10,2),
+ 11      operating_loss NUMBER(10,2),
+ 12      non_operating_income_expenses NUMBER(10,2),
+ 13      other_income NUMBER(10,2),
+ 14      other_gains_losses NUMBER(10,2),
+ 15      finance_costs NUMBER(10,2),
+ 16      share_of_profit_loss_associates NUMBER(10,2),
+ 17      profit_before_tax NUMBER(10,2),
+ 18      income_tax_expense NUMBER(10,2),
+ 19      net_loss NUMBER(10,2),
+ 20      total_comprehensive_income NUMBER(10,2),
+ 21      net_profit_loss_attributable_parent NUMBER(10,2),
+ 22      net_profit_loss_attributable_nci NUMBER(10,2),
+ 23      total_comprehensive_income_attributable_parent NUMBER(10,2),
+ 24      total_comprehensive_income_attributable_nci NUMBER(10,2)
+ 25  );
+
+Table created.
+
+SQL> CREATE TABLE Income_Expense_Category (
+  2      category_id INT PRIMARY KEY,
+  3      category_name VARCHAR2(50) NOT NULL,
+  4      category_type VARCHAR2(10) CHECK (category_type IN ('Inc', 'Exp')),
+  5      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  6      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  7  );
+
+Table created.
+
+SQL> CREATE SEQUENCE income_expense_category_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE Income_Expense_Category MODIFY category_id DEFAULT income_expense_category_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE SYNONYM Departments FOR HR.Departments;
+
+Synonym created.
+
+SQL> CREATE TABLE Department_Monthly_Income_Expense (
+  2      detail_id INT PRIMARY KEY,
+  3      department_id INT REFERENCES Departments(department_id),
+  4      transaction_year INT NOT NULL,
+  5      transaction_month INT NOT NULL,
+  6      category_id INT REFERENCES Income_Expense_Category(category_id),
+  7      amount NUMBER(10,2) NOT NULL,
+  8      description VARCHAR2(255),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 11  );
+
+Table created.
+
+SQL> CREATE SEQUENCE dept_monthly_income_expense_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE Department_Monthly_Income_Expense MODIFY detail_id DEFAULT dept_monthly_income_expense_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE ACCOUNT (
+  2      account_id VARCHAR2(10) PRIMARY KEY NOT NULL,
+  3      account_name VARCHAR2(50) NOT NULL,
+  4      category VARCHAR2(20) NOT NULL,
+  5      subcategory VARCHAR2(20),
+  6      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  7      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  8  );
+
+Table created.
+
+SQL> CREATE TABLE AccountingPeriod (
+  2      period_id INT PRIMARY KEY,
+  3      start_date DATE NOT NULL,
+  4      end_date DATE NOT NULL,
+  5      description VARCHAR2(50),
+  6      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  7      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  8  );
+
+Table created.
+
+SQL> CREATE SEQUENCE accounting_period_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE AccountingPeriod MODIFY period_id DEFAULT accounting_period_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE TABLE TaxRecords (
+  2      tax_record_id INT PRIMARY KEY,
+  3      tax_year INT NOT NULL,
+  4      tax_item VARCHAR2(50) NOT NULL,
+  5      tax_amount NUMBER(10,2) NOT NULL,
+  6      payment_date DATE,
+  7      note VARCHAR2(4000),
+  8      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  9      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 10  );
+
+Table created.
+
+SQL> CREATE SEQUENCE tax_records_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> ALTER TABLE TaxRecords MODIFY tax_record_id DEFAULT tax_records_seq.NEXTVAL;
+
+Table altered.
+
+SQL> CREATE OR REPLACE TRIGGER update_income_expense_category_updated_at
+  2  BEFORE UPDATE ON Income_Expense_Category
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_department_monthly_income_expense_updated_at
+  2  BEFORE UPDATE ON DepartmentMonthlyIncomeExpense
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+BEFORE UPDATE ON DepartmentMonthlyIncomeExpense
+                 *
+ERROR at line 2:
+ORA-00942: table or view does not exist
+
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_account_updated_at
+  2  BEFORE UPDATE ON ACCOUNT
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_accounting_period_updated_at
+  2  BEFORE UPDATE ON AccountingPeriod
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_tax_records_updated_at
+  2  BEFORE UPDATE ON TaxRecords
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+
+======== Setup IT Schema ========
+
+
+SQL> ALTER SESSION SET CURRENT_SCHEMA = IT;
+
+Session altered.
+
+SQL> GRANT REFERENCES ON HR.Employees TO IT;
+
+Grant succeeded.
+
+SQL> CREATE SYNONYM Employees FOR HR.Employees;
+
+Synonym created.
+
+SQL> CREATE TABLE IT_Resources (
+  2      resource_id INT PRIMARY KEY,
+  3      resource_name VARCHAR2(50) NOT NULL,
+  4      resource_type VARCHAR2(20),
+  5      specifications VARCHAR2(255),
+  6      employee_id VARCHAR2(8) REFERENCES Employees(employee_id),
+  7      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  8      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  9  );
+
+Table created.
+
+SQL> CREATE TABLE Security_Incidents (
+  2      incident_id INT PRIMARY KEY,
+  3      incident_time TIMESTAMP NOT NULL,
+  4      incident_type VARCHAR2(50),
+  5      incident_description CLOB,
+  6      employee_id VARCHAR2(8) REFERENCES HR.Employees(employee_id), -- Referencing HR schema
+  7      status VARCHAR2(20),
+  8      confidentiality_impact VARCHAR2(50) CHECK (confidentiality_impact IN ('Leakage of non-core business data', 'Leakage of sensitive data', 'Leakage of confidential data')),
+  9      integrity_impact VARCHAR2(50) CHECK (integrity_impact IN ('Tampering with non-core business systems or data', 'Tampering with core business systems or data', 'Tampering with the company''s critical information infrastructure systems or data')),
+ 10      availability_impact VARCHAR2(50) CHECK (availability_impact IN ('Non-core business operations affected or temporarily halted', 'Core business operations affected or temporarily halted and unable to resume normal operations within the tolerable interruption period', 'Critical information infrastructure operations affected or system downtime, unable to resume normal operations within the tolerable interruption period')),
+ 11      damage_level VARCHAR2(50) CHECK (damage_level IN ('Service interruption', 'Database corruption', 'Data theft or tampering', 'System crash', 'Hardware or software equipment failure', 'Virus infection', 'Personal data theft/tampering/loss/leakage', 'Other')),
+ 12      additional_info CLOB,
+ 13      loss_assessment CLOB,
+ 14      system_service_termination_record VARCHAR2(20) CHECK (system_service_termination_record IN ('Normal operation', 'Service termination')),
+ 15      termination_duration_hours NUMBER(5,2),
+ 16      actions_taken CLOB,
+ 17      incident_resolution_time TIMESTAMP,
+ 18      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 19      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 20  );
+
+Table created.
+
+SQL> GRANT REFERENCES ON INVENTORY.SUPPLIER_INFO TO IT;
+
+Grant succeeded.
+
+SQL> CREATE SYNONYM SUPPLIER_INFO FOR INVENTORY.SUPPLIER_INFO;
+
+Synonym created.
+
+SQL> GRANT REFERENCES ON HR.Departments TO IT;
+
+Grant succeeded.
+
+SQL> CREATE SYNONYM Departments FOR HR.Departments;
+
+Synonym created.
+
+SQL> CREATE TABLE INFORMATION_ASSERT_INFO (
+  2      asset_id INT PRIMARY KEY,
+  3      asset_name VARCHAR2(100) NOT NULL,
+  4      asset_code VARCHAR2(50) NOT NULL,
+  5      asset_category VARCHAR2(20) CHECK (asset_category IN ('Hardware', 'Software')),
+  6      license_expiry_date DATE NOT NULL,
+  7      license_cost NUMBER(10,2),
+  8      model VARCHAR2(50),
+  9      supplier_uid INT REFERENCES SUPPLIER_INFO(supplier_uid),
+ 10      portable CHAR(1) CHECK (portable IN ('Y', 'N')),
+ 11      department_id INT REFERENCES Departments(department_id),
+ 12      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 13      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 14  );
+
+Table created.
+
+SQL> GRANT REFERENCES ON MEDICAL_AFFAIRS.PATIENT_INFO TO IT;
+
+Grant succeeded.
+
+SQL> CREATE SYNONYM PATIENT_INFO FOR MEDICAL_AFFAIRS.PATIENT_INFO;
+
+Synonym created.
+
+SQL> CREATE TABLE MEMBER_INFO (
+  2      member_id INT PRIMARY KEY,
+  3      member_fullname VARCHAR2(50) NOT NULL,
+  4      member_username VARCHAR2(50) UNIQUE NOT NULL,
+  5      member_password VARCHAR2(255) NOT NULL,
+  6      phone_number VARCHAR2(20) NOT NULL CHECK (REGEXP_LIKE(phone_number, '^\d{10}$')),
+  7      email VARCHAR2(100),
+  8      gender CHAR(1) CHECK (gender IN ('M', 'F')),
+  9      birthday DATE,
+ 10      patient_info_id INT REFERENCES PATIENT_INFO(patient_info_id),
+ 11      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 12      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 13  );
+
+Table created.
+
+SQL> CREATE SYNONYM Employees_syslog FOR HR.Employees;
+
+Synonym created.
+
+SQL> CREATE TABLE SYSTEM_LOG (
+  2      log_id INT PRIMARY KEY,
+  3      operation_time TIMESTAMP NOT NULL,
+  4      operation_type VARCHAR2(50),
+  5      employee_id VARCHAR2(8) REFERENCES Employees_syslog(employee_id),
+  6      description CLOB,
+  7      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  8      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  9  );
+
+Table created.
+
+SQL> CREATE OR REPLACE TRIGGER update_it_resources_updated_at
+  2  BEFORE UPDATE ON IT_Resources
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_security_incidents_updated_at
+  2  BEFORE UPDATE ON Security_Incidents
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_information_assert_info_updated_at
+  2  BEFORE UPDATE ON INFORMATION_ASSERT_INFO
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_member_info_updated_at
+  2  BEFORE UPDATE ON MEMBER_INFO
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER update_system_log_updated_at
+  2  BEFORE UPDATE ON SYSTEM_LOG
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE SEQUENCE resource_id START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE incident_id START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE asset_id START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE member_id START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE log_id START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+
+======== Setup Public Relation Schema ========
+
+SQL> ALTER SESSION SET CURRENT_SCHEMA = PUBLIC_RELATIONS;
+
+Session altered.
+
+SQL> GRANT REFERENCES ON IT.MEMBER_INFO TO PUBLIC_RELATIONS;
+
+Grant succeeded.
+
+SQL> CREATE TABLE Customers (
+  2      customers_seq INT PRIMARY KEY,
+  3      member_id INT,
+  4      customer_name VARCHAR2(50) NOT NULL,
+  5      contact_person VARCHAR2(50),
+  6      phone_number VARCHAR2(20) NOT NULL,
+  7      email VARCHAR2(255),
+  8      address VARCHAR2(255),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      CONSTRAINT fk_customers_member FOREIGN KEY (member_id) REFERENCES IT.MEMBER_INFO(member_id),
+ 12      CONSTRAINT chk_customers_phone CHECK (REGEXP_LIKE(phone_number, '^\d{10}$'))
+ 13  );
+
+Table created.
+
+SQL> CREATE TABLE CustomerInteractions (
+  2      interaction_id INT PRIMARY KEY,
+  3      member_id INT,
+  4      interaction_time TIMESTAMP NOT NULL,
+  5      interaction_type VARCHAR2(50),
+  6      description VARCHAR2(4000),
+  7      employee_id VARCHAR2(8),
+  8      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  9      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      CONSTRAINT fk_customer_interactions_member FOREIGN KEY (member_id) REFERENCES IT.MEMBER_INFO(member_id),
+ 11      CONSTRAINT fk_customer_interactions_employee FOREIGN KEY (employee_id) REFERENCES HR.Employees(employee_id)
+ 12  );
+
+Table created.
+
+SQL> GRANT REFERENCES ON HR.Employees TO PUBLIC_RELATIONS;
+
+Grant succeeded.
+
+SQL> CREATE TABLE MedicalServiceProducts (
+  2      product_id INT PRIMARY KEY,
+  3      product_name VARCHAR2(50) NOT NULL,
+  4      description VARCHAR2(255),
+  5      price NUMBER(10,2) NOT NULL,
+  6      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  7      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  8  );
+
+Table created.
+
+SQL> CREATE TABLE ProductSales (
+  2      sales_id INT PRIMARY KEY,
+  3      product_id INT,
+  4      member_id INT,
+  5      sales_date DATE NOT NULL,
+  6      quantity INT NOT NULL,
+  7      unit_price NUMBER(10,2) NOT NULL,
+  8      total_amount NUMBER(10,2) NOT NULL,
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      CONSTRAINT fk_product_sales_product FOREIGN KEY (product_id) REFERENCES Public_Relations.MedicalServiceProducts(product_id),
+ 12      CONSTRAINT fk_product_sales_member FOREIGN KEY (member_id) REFERENCES IT.MEMBER_INFO(member_id),
+ 13      CONSTRAINT chk_product_sales_quantity CHECK (quantity > 0)
+ 14  );
+
+Table created.
+
+SQL> CREATE TABLE BrandStrategies (
+  2      strategy_id INT PRIMARY KEY,
+  3      strategy_name VARCHAR2(50) NOT NULL,
+  4      target_audience VARCHAR2(255),
+  5      objectives VARCHAR2(4000),
+  6      execution_period VARCHAR2(50),
+  7      budget NUMBER(10,2),
+  8      employee_id VARCHAR2(8),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      CONSTRAINT fk_brand_strategies_employee FOREIGN KEY (employee_id) REFERENCES HR.Employees(employee_id)
+ 12  );
+
+Table created.
+
+SQL> GRANT REFERENCES ON INVENTORY.SUPPLIER_INFO TO PUBLIC_RELATIONS;
+
+Grant succeeded.
+
+SQL> CREATE TABLE PartnerSalespersons (
+  2      salesperson_id INT PRIMARY KEY,
+  3      supplier_uid INT,
+  4      salesperson_name VARCHAR2(50) NOT NULL,
+  5      phone_number VARCHAR2(20) NOT NULL,
+  6      email VARCHAR2(255),
+  7      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  8      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  9      CONSTRAINT fk_partner_salespersons_supplier FOREIGN KEY (supplier_uid) REFERENCES INVENTORY.SUPPLIER_INFO(supplier_uid),
+ 10      CONSTRAINT chk_partner_salespersons_phone CHECK (REGEXP_LIKE(phone_number, '^\d{10}$'))
+ 11  );
+
+Table created.
+
+SQL> CREATE TABLE MarketingMaterials (
+  2      material_id INT PRIMARY KEY,
+  3      material_title VARCHAR2(50) NOT NULL,
+  4      material_type VARCHAR2(20),
+  5      content CLOB,
+  6      publish_date DATE,
+  7      platform VARCHAR2(50),
+  8      cost NUMBER(10,2),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ 11  );
+
+Table created.
+
+SQL>
+SQL> CREATE TABLE MediaRelations (
+  2      record_id INT PRIMARY KEY,
+  3      media_name VARCHAR2(50) NOT NULL,
+  4      interaction_time TIMESTAMP NOT NULL,
+  5      interaction_type VARCHAR2(50),
+  6      description VARCHAR2(4000),
+  7      employee_id VARCHAR2(8),
+  8      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  9      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      CONSTRAINT fk_media_relations_employee FOREIGN KEY (employee_id) REFERENCES HR.Employees(employee_id)
+ 11  );
+
+Table created.
+
+SQL>
+SQL> CREATE TABLE ReputationIncidents (
+  2      incident_id INT PRIMARY KEY,
+  3      incident_time TIMESTAMP NOT NULL,
+  4      incident_type VARCHAR2(50),
+  5      description VARCHAR2(4000),
+  6      employee_id VARCHAR2(8),
+  7      actions_taken VARCHAR2(4000),
+  8      status VARCHAR2(20),
+  9      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 10      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ 11      CONSTRAINT fk_reputation_incidents_employee FOREIGN KEY (employee_id) REFERENCES HR.Employees(employee_id)
+ 12  );
+
+Table created.
+
+SQL> CREATE SEQUENCE customer_interactions_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE customers_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE product_sales_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE products_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE brand_strategies_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE partner_salespersons_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE marketing_materials_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE media_relations_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE SEQUENCE reputation_incidents_seq START WITH 1 INCREMENT BY 1;
+
+Sequence created.
+
+SQL> CREATE OR REPLACE TRIGGER customer_interactions_updated_at
+  2  BEFORE UPDATE ON CustomerInteractions
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL> CREATE OR REPLACE TRIGGER customers_updated_at
+  2  BEFORE UPDATE ON Customers
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER product_sales_updated_at
+  2  BEFORE UPDATE ON ProductSales
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER medical_service_products_updated_at
+  2  BEFORE UPDATE ON MedicalServiceProducts
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER brand_strategies_updated_at
+  2  BEFORE UPDATE ON BrandStrategies
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER partner_salespersons_updated_at
+  2  BEFORE UPDATE ON PartnerSalespersons
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER marketing_materials_updated_at
+  2  BEFORE UPDATE ON MarketingMaterials
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER media_relations_updated_at
+  2  BEFORE UPDATE ON MediaRelations
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
+
+SQL>
+SQL> CREATE OR REPLACE TRIGGER reputation_incidents_updated_at
+  2  BEFORE UPDATE ON ReputationIncidents
+  3  FOR EACH ROW
+  4  BEGIN
+  5      :NEW.updated_at := CURRENT_TIMESTAMP;
+  6  END;
+  7  /
+
+Trigger created.
